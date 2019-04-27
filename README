@@ -1,0 +1,43 @@
+--------------------------
+calR version 2.5
+Pre-compiled to work with CASA version 5.4.1-32.el7
+--------------------------
+Tasks included:
+gaincalR : Robust frequency independent calibration of antenna gains
+bandpassR : Robust frequency dependent calibration of antenna gains
+imthreshold : Task to remove negetives from model image.
+--------------------------
+
+Instruction for installing calR
+1) Extract calR_v2.5_precompile.tar.gz [tar -xvf calR_v2.5_precompile.tar.gz]
+
+
+2) cd calR_v2.2_precompile 
+   run CASA in the directory and on the ipython shell run :
+   os.system('buildmytasks')
+   [This should create multiple files in the directory including a 'gaincalR.py' file]
+
+
+3) Open ~/.casa/init.py and add:
+   [Note the init.py file may not exist and in which case, must be created] 
+   
+   gaincalR_path='/install/path'
+   sys.path.append(gaincalR_path)
+   execfile(gaincalR_path+'/mytasks.py')
+
+   where /install/path is the path to the directory where the task was installed 
+   (do retain the single quotes in that line)
+
+
+4) Add the following line to your .bashrc script : 
+
+   export CASALD_LIBRARY_PATH=/install/path/calRcore
+
+  (do retain the /calRcore at the end of the installation path!)
+
+5) Add the following line to ~/.casarc (you may need to create the file if it does not exist):
+	 measures.directory: /path_to_casa_dir/casa-release-5.4.1-32.el7/data
+
+ Replace path_to_casa_dir with where you have put casa.
+--------------------------
+

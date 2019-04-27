@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" ?>
+<casaxml xmlns="http://casa.nrao.edu/schema/psetTypes.html"
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:schemaLocation="http://casa.nrao.edu/schema/casa.xsd
+file:///opt/casa/code/xmlcasa/xml/casa.xsd">
+
+<!-- This is the parameter set for mkpipeline -->
+
+<task type="function" name="bandpassR" category="calibration" visibility="experimental">
+
+  <shortdescription>Task for robust bandpass calibration of data.</shortdescription>
+
+  <description>An alternate version of bandpass that computes the gain using a robust L2 minimization procedure and also provides AIPS like divide by channel zero functionalities.</description>
+
+  <input>
+
+    <param type="string" name="vis" mustexist="true">
+       <description>Name of input visibility file</description>
+          <value></value>
+    </param>
+
+    <param type="string" name="caltable">
+      <description>Name of output gain calibration table</description>
+      <value></value>
+    </param>
+
+    <param type="string" name="field">
+      <description>Select field using field id(s) or field name(s)</description>
+      <value></value>
+    </param>
+
+    <param type="string" name="spw">
+      <description>Select spectral window/channels</description>
+      <value></value>
+    </param>
+
+    <param type="bool" name="selectdata">
+      <description>Other data selection parameters</description>
+      <value>True</value>
+    </param>
+
+    <param type="string" name="uvrange" subparam="true">
+      <description>Select data within uvrange</description>
+      <value></value>
+    </param>
+
+    <param type="string" name="scan" subparam="true">
+      <description>Scan number range</description>
+      <value></value>
+    </param>
+
+    <param type="string" name="observation" subparam="true">
+      <description>Select by observation ID(s)</description>
+      <value></value>
+    </param>
+
+   <param type="string" name="solint">
+      <description>Solution interval: egs. inf, int, 60s</description>
+      <value>inf</value>
+    </param>
+
+    <param type="string" name="combine">
+      <description>Data axes which to combine for solve (currently only scan is supported)</description>
+      <value></value>
+    </param>
+
+    <param type="int" name="refant">
+      <description>Reference antenna index (The order is same as that shown in listobs output with the first antenna having an index 0)</description>
+      <value>0</value>
+    </param>
+
+    <param type="int" name="minblperant">
+      <description>Minimum baselines _per antenna_ required for solve</description>
+      <value>4</value>
+    </param>
+
+    <param type="int" name="minsnr">
+      <description>Reject solutions below this SNR</description>
+      <value>5</value>
+    </param>
+
+   
+	
+	
+    <param type="string" name="calmode">
+      <description>Type of solution: (ap, p, a)</description>
+      <value>ap</value>
+        <allowed kind="enum">
+	     <value>ap</value>
+             <value>p</value>
+              <value>a</value>
+	  </allowed>
+    </param>
+     <param type="bool" name="caltables" >
+	        <description>Apply calibration tables before solving</description>
+	        <value>True</value>
+    </param>
+
+	
+	<param type="stringArray" name="gaintable" subparam="true">
+		<description>Gain calibration table(s) to apply on the fly</description>
+		<value></value>
+	</param>
+
+	<param type="stringArray" name="gainfield" subparam="true">
+		<description>Select a subset of calibrators from gaintable(s)</description>
+		<value></value>
+	</param>
+
+	<param type="stringArray" name="interp" subparam="true">
+		<description>Temporal interpolation for each gaintable (''=linear)</description>
+		<value></value>
+	</param>
+
+	<param type="intArray" name="spwmap" subparam="true">
+		<description>Spectral windows combinations to form for gaintables(s)</description>
+		<value></value>
+	</param>
+	 
+	  <param type="bool" name="robust">
+      <description>Perform robust calibration using an outlier detection algorithm.</description>
+      <value>True</value>        
+    </param>
+    
+
+     <param type="string" name="outlieralgorithm" subparam="true">
+      <description>Type of outlier detection: (RMS, Median)</description>
+      <value>RMS</value>
+        <allowed kind="enum">
+             <value>RMS</value>
+              <value>Median</value>
+	  </allowed>
+    </param>
+    
+    
+    <param type="doubleArray" name="threshold" subparam="true">
+      <description>Baselines are marked as outliers if they are more than n*sigma deviant from the model where sigma is computed from the data and the value of n is specified in this parameter. E.g n=[7,5,3].  </description>
+      <value></value>       
+    </param>
+    
+    
+    
+		<param type="bool" name="dosolintflag" subparam="true">
+			<description>Flag within solution interval, both along spectral and temporal axis.</description>
+			<value>False</value>
+		</param>
+    
+    <param type="double" name="mingain" subparam="true">
+      <description>Amplitude threshold for flagging dead antennas.</description>
+      <value>0.01</value>       
+    </param>
+    
+    
+
+     <param type="bool" name="dividebychanzero">
+      <description>Divide by channel zero before solving for bandpass.</description>
+      <value>False</value>        
+    </param>
+    
+
+     <param type="string" name="chanzerorange" subparam="true">
+      <description>The range of channels which define channel zero. e.g. 5~10. Default will select the central 50% of the band</description>
+      <value></value>        
+    </param>
+    
+    
+    <param type="bool" name="normamp" subparam="true">
+      <description>Normalize channel amplitudes using channel zero</description>
+      <value>False</value>       
+    </param>
+    
+    
+    
+  <param type="bool" name="zerophase" subparam="true">
+      <description>Subtract channel zero phase from each channel.</description>
+      <value>False</value>
+    </param>
+    
+    <param type="bool" name="preaverage" subparam="true">
+      <description>Average channel zero over solint before dividing.</description>
+      <value>False</value>       
+    </param>
+    
+    
+    
+    
+    
+    <param type="bool" name="solnorm">
+      <description>Normalize antenna based gain solutions.</description>
+      <value>False</value>        
+    </param>
+    
+
+     <param type="string" name="normchanrange" subparam="true">
+      <description>The range of channels which are used as reference. e.g. 5~10. Default will select the central 50% of the band</description>
+      <value></value>        
+    </param>
+    
+    
+    <param type="bool" name="normampgains" subparam="true">
+      <description>Normalize channel amplitudes</description>
+      <value>False</value>       
+    </param>
+    
+    
+    
+  <param type="bool" name="zerophasegains" subparam="true">
+      <description>Subtract phase.</description>
+      <value>False</value>
+    </param>
+    
+     <param type="bool" name="debugmode">
+      <description>Turns on verbose outputs.</description>
+      <value>False</value>
+    </param>
+    
+<constraints>
+	<when param="solnorm">
+		<equals type="bool" value="False"/>
+		<equals type="bool" value="True">
+			<default param="normchanrange"> <value type="string"></value></default>	
+			<default param="normampgains" type='bool'><value>True</value></default>	
+			<default param="zerophasegains" type='bool'><value>True</value></default>
+		</equals>		
+		
+	</when>
+
+	<when param="dividebychanzero">
+		<equals type="bool" value="False"/>
+		<equals type="bool" value="True">
+			<default param="chanzerorange"> <value type="string"></value></default>	
+			<default param="normamp" type='bool'><value>True</value></default>	
+			<default param="zerophase" type='bool'><value>True</value></default>
+			<default param="preaverage" type='bool'><value>False</value></default>		
+		</equals>		
+		
+	</when>
+	<when param="robust">
+		<equals type="bool" value="True">
+			<default param="outlieralgorithm"> <value type="string">RMS</value></default>	
+			<default param="threshold"><value type='doubleArray'>7., 5., 4., 3.5</value></default>	
+			<default param="dosolintflag" type='bool'><value>False</value></default>
+			<default param="mingain" type='int'><value>0.01</value></default>		
+		</equals>		
+		<equals type="bool" value="False"/>
+	</when>
+	<when param="selectdata">
+		<equals type="bool" value="True">
+			<default param="uvrange"><value type="string"/></default>
+			<default param="scan"><value type="string"/></default>
+			<default param="observation"><value type="string"/></default>
+		</equals>
+		<equals type="bool" value="False"/>
+	</when>
+	<when param="caltables">
+                <equals type="bool" value="True">
+                        <default param="gaintable"><value type="stringArray"/></default>
+                        <default param="gainfield"><value type="stringArray"/></default>
+                        <default param="interp"><value type="stringArray"/></default>
+                        <default param="spwmap"><value type="intArray"/></default>
+		</equals>
+                <equals type="bool" value="False">
+		</equals>
+        </when>
+</constraints>
+  </input>
+
+  <returns type="void"/>
+
+</task>
+
+</casaxml>

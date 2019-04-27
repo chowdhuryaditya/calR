@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" ?>
+<casaxml xmlns="http://casa.nrao.edu/schema/psetTypes.html"
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:schemaLocation="http://casa.nrao.edu/schema/casa.xsd
+file:///opt/casa/code/xmlcasa/xml/casa.xsd">
+
+<!-- This is the parameter set for mkpipeline -->
+
+<task type="function" name="imthreshold" category="calibration" visibility="experimental">
+
+	<shortdescription>Task for removing negetives from model image. For every point at (x,y) such that Flux(x,y) less than threshold, the task removes all points below abs(threshold) in [x-boxsize/2 to x+boxsize/2, y-boxsize/2 to y+boxsize/2]. </shortdescription>
+
+	<description>For every point at (x,y) such that Flux(x,y) less than threshold, the task removes all points below abs(threshold) in [x-boxsize/2 to x+boxsize/2, y-boxsize/2 to y+boxsize/2].</description>
+
+	<input>
+
+		<param type="string" name="imname">
+			<description>Name of input image file without extension. Output file(s) created: [imname]_noneg.model</description>
+			<value></value>
+		</param>
+
+		<param type="int" name="boxsize">
+			<description>Size of filtering region in pixels.</description>
+			<value>1</value>
+		</param>
+
+		<param type="double" name="threshold">
+			<description>Threshold below which all points are removed from the image column</description>
+			<value>0.0</value>
+		</param>
+
+		<param type="bool" name="mtmfs">
+			<description>Was the image generated using the mtmfs mode in tclean?</description>
+			<value>False</value>
+		</param>
+
+		<param type="int" name="nterm"  subparam="true">
+			<description>Number of spectral terms used in mtmfs.</description>
+			<value>2</value>
+		</param>
+		
+    
+		<param type="bool" name="debugmode">
+			<description>Turns on verbose outputs.</description>
+			<value>False</value>
+		 </param>
+    
+    
+		
+		
+		 <constraints>
+		 	<when param="mtmfs">
+				<equals type="bool" value="False"/>
+				<equals type="bool" value="True">
+					<default param="nterm"><value type="int">3</value></default>
+				</equals>
+				
+						
+			</when>
+
+			
+		</constraints>
+		
+
+ </input>
+
+  <returns type="void"/>
+
+</task>
+
+</casaxml>
