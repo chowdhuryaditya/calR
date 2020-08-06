@@ -52,8 +52,9 @@ class calibSolver:
 		self.tblock=300.0
 		self.ispw=0	
 		self.error=False	
+		self.dataDescIndex,self.spwIndex=self.getSpwMap() 
 		self.nCorr,self.totalIpoln=self.getPolnTypes()	
-		casalog.post("CalR_v2.5")
+		casalog.post("CalR_v3.2")
 		if(self.debug):
 			self.initDebugCounters()			
 		else:
@@ -63,8 +64,8 @@ class calibSolver:
 		#self.createCaltable()
 		if(self.solint !='inf' and self.solint != 'int'):
 			self.solint=self.solint*60.0
-		self.dataDescIndex,self.spwIndex=self.getSpwMap() 
-		self.solintMap=self.getSolintMap() 
+
+		self.solintMap,self.spwGroup=self.getSolintMap() 
 		self.initVisAccum()
 		#solver statistics counters
 		self.nflaginit=0
@@ -253,7 +254,7 @@ class calibSolver:
 		self.tb.close()
 		self.startrow+=nrows
 	
-	def getInc(self,time,scan,index):
+	def getInc(self,time,scan,field,index):
 		if(self.solint=='int'):
 			return 1
 		elif(self.combine==''):
@@ -261,7 +262,10 @@ class calibSolver:
 				return (np.argwhere(scan[index:]==scan[index])[-1][0]+1)
 			else:
 				if(index+self.maxSamples>=len(scan)):
-					return (len(scan)-index)
+					if(scan[index]==scan[-1]):
+						return (len(scan)-index)
+					else:
+						return (np.argwhere(scan[index:]==scan[index])[-1][0]+1)
 				if(scan[index]==scan[index+self.maxSamples]):
 					return self.solintSamples
 				else:
@@ -269,13 +273,16 @@ class calibSolver:
 			
 		elif(self.combine=='scan'):
 			if(self.solint=='inf'):
-				return scan[-1]
+				return scan[field==field[index]][-1]
 			else:
-				return np.argwhere(time[index:]>time[index]+self.solint)[-1][0]+1
+				if(time[field==field[index]][-1]<time[index]+self.solint):
+					return (np.argwhere(field[index:]==field[index])[-1][0]+1)
+				else:
+					return np.argwhere(time[index:][(field==field[index])[index:]]>time[index]+self.solint)[-1][0]+1
 	
 	def getPolnTypes(self):
 		self.tb.open(self.vis+"/DATA_DESCRIPTION")
-		polSetup=np.unique(self.tb.getcol("POLARIZATION_ID"))
+		polSetup=np.unique(self.tb.getcol("POLARIZATION_ID")[self.dataDescIndex[0]])
 		self.tb.close()
 		self.tb.open(self.vis+"/POLARIZATION",nomodify=True)
 		for iPolSetup in polSetup:		
@@ -325,35 +332,63 @@ class calibSolver:
 			casalog.post("Selected DATA_DESCRIPTION_ID:")
 			casalog.post(np.array2string(np.array(dataDescIndex)))
 		return dataDescIndex,spwIndex
-		
+	
+	def getSpwGroup(self,scanMap):
+		spwlist=np.arange(len(self.spwIndex))
+		group=[]
+		while(len(spwlist)>0):	
+			thisgroup=[spwlist[0]]
+			indices=[0]
+			mapLen=len(scanMap[0])	
+			for ispw in range(1,len(spwlist)):
+				if(mapLen!=len(scanMap[ispw])):
+					continue
+				if(np.sum(scanMap[0]==scanMap[ispw])==mapLen):
+					thisgroup.append(spwlist[ispw])
+					indices.append(ispw)
+			spwlist=np.delete(spwlist,indices)
+			for ispw in sorted(indices, reverse=True):
+   				del scanMap[ispw]
+			group.append(thisgroup)
+		return group
+						
+			
 	def getSolintMap(self):
 		solintMap=[]
+		scanMap=[]
 		for ispw in range(len(self.spwIndex)):
 			thisSolintMap=[]
+			thisScanMap=[]
 			self.ms.open(self.vis,nomodify=True)
 	      		self.ms.selectinit(datadescid=self.dataDescIndex[ispw])  
 			self.ms.msselect({'field':self.field,'spw':self.spw,'scan':self.scan,'uvdist':self.uvrange,
 					'observation':self.observation})
-			dataAll=self.ms.getdata(['TIME','SCAN_NUMBER'],ifraxis=True)
+			dataAll=self.ms.getdata(['TIME','SCAN_NUMBER','FIELD_ID'],ifraxis=True)
 			scan=dataAll['scan_number']	
-			time=dataAll['time']	
+			time=dataAll['time']
+			field=dataAll['field_id']		
 			if(self.solint!='inf' and self.solint!='int'):		
 				self.solintSamples=int((self.solint+0.1)/(time[1]-time[0]))
 				self.maxSamples=int((self.solint*1.6+0.1)/(time[1]-time[0]))+1
 
 			i=0
 			while(i<scan.shape[0]):
-				inc=self.getInc(time,scan,i)
+				inc=self.getInc(time,scan,field,i)
 				thisSolintMap.append(inc)
+				thisScanMap.append(scan[i])
 				i+=inc
 				#casalog.post(i,self.solintSamples,self.maxSamples,inc)
 			self.ms.close()
-			solintMap.append(thisSolintMap)
+			scanMap.append(np.unique(thisScanMap))
+			solintMap.append(np.array(thisSolintMap))
+		spwGroup=self.getSpwGroup(scanMap)
 		solintMap=np.array(solintMap)
 		if(self.debug):
 			casalog.post("DEBUG: Solint map")
 			casalog.post(np.array2string(solintMap))
-		return solintMap
+			casalog.post("DEBUG: spw groups")
+			casalog.post("".join(map(str, spwGroup)))
+		return solintMap,spwGroup
 			
 	
 	def initVisAccum(self):
@@ -378,7 +413,8 @@ class calibSolver:
 		ispw=self.ispw
 		accumFlag=np.logical_not(accumFlag)
 		accumWeight=1.0/accumWeight
-		goodbl=(np.mean(np.mean(np.mean(accumFlag,axis=0),axis=1),axis=1)>0.1)
+		
+		goodbl=(np.mean(np.mean(np.mean(accumFlag,axis=0),axis=1),axis=1)>0)
 		casalog.origin("gaincalRIO::coreIO::coreSolve")		
 		if(self.debug):
 			casalog.post("Good baselines: %d"%np.sum(goodbl))
@@ -393,7 +429,6 @@ class calibSolver:
 			casalog.post("DEBUG: start solve")
 			
 		self.getGains(solver,accumData,accumModel,accumWeight,accumFlag,goodbl)
-				
 		if(self.debug):
 			self.timesolve+=clock.time()
 			casalog.post("DEBUG: end solve")
@@ -407,7 +442,6 @@ class calibSolver:
 		totalSol=self.gains.shape[0]*self.gains.shape[1]*self.gains.shape[2]
 		self.nflagfinal+=np.sum(self.antFlags)
 		self.ntotalsol+=totalSol
-
 		casalog.post("%d/%d : %d out of %d solutions flagged"%(self.isol+1,self.solintMap[ispw].shape[0],totalSol-np.sum(self.antFlags),totalSol))
 			
 	def accumulateAndSolvePerSPW(self):		
@@ -416,17 +450,16 @@ class calibSolver:
 		dosolve=True
 		accumScan=-1
 		while(dosolve):
-			
 			dosolve=self.accum[ispw].nextIter()
 			if(dosolve):					
 				accumTime,accumScan,accumSPW,accumField,accumData,accumModel,accumWeight,accumFlag=self.accum[ispw].getAccum()
 				self.coreSolve(accumData,accumModel,accumWeight,accumFlag)
-				
-				self.putInTable(self.gains,self.gains_er,self.snr,np.logical_not(self.antFlags),accumTime/self.solintMap[ispw][self.isol],accumScan,accumField,accumSPW)
+				self.putInTable(self.gains,self.gains_er,self.snr,np.logical_not(self.antFlags),accumTime/self.solintMap[ispw][self.isol],accumScan,accumField,self.spwIndex[ispw])
 				self.isol+=1
 				if(self.isol<len(self.solintMap[ispw])):
 					self.accum[ispw].setnsolint(self.solintMap[ispw][self.isol])			
 				self.accum[ispw].resetAccum()
+
 		endflag=self.accum[ispw].getEndflag()
 		#scan=[-1,-1]
 		#if(endflag):		
@@ -441,27 +474,30 @@ class calibSolver:
 		dosolve=True
 		accumScan=-1
 		while(dosolve):
-			for ispw in range(len(self.spwIndex)):
+			for ispw in self.spwGroup[self.curGroup]:
 				dosolve=self.accum[ispw].nextIter()
 			
 			if(dosolve):					
-				accumTime,accumScan,accumSPW,accumField,accumData,accumModel,accumWeight,accumFlag=self.accum[0].getAccum()
-				for ispw in range(1,len(self.spwIndex)):
+				accumTime,accumScan,accumSPW,accumField,accumData,accumModel,accumWeight,accumFlag=self.accum[self.spwGroup[self.curGroup][0]].getAccum()
+				if(accumWeight.shape[2]==1):
+					accumWeight=np.repeat(accumWeight,repeats=accumData.shape[2],axis=2)
+				for ispw in self.spwGroup[self.curGroup][1:]:
 					accumTime,accumScan,accumSPW,accumField,accumData_,accumModel_,accumWeight_,accumFlag_=self.accum[ispw].getAccum()
 					accumData=np.append(accumData,accumData_,axis=2)
 					accumModel=np.append(accumModel,accumModel_,axis=2)
+					if(accumWeight_.shape[2]==1):
+						accumWeight_=np.repeat(accumWeight_,repeats=accumData_.shape[2],axis=2)
 					accumWeight=np.append(accumWeight,accumWeight_,axis=2)
 					accumFlag=np.append(accumFlag,accumFlag_,axis=2)
-				
 				self.coreSolve(accumData,accumModel,accumWeight,accumFlag)
-				
+
 				self.isol+=1
-				for ispw in range(len(self.spwIndex)):
+				for ispw in self.spwGroup[self.curGroup]:
 					self.putInTable(self.gains,self.gains_er,self.snr,np.logical_not(self.antFlags),accumTime/self.solintMap[ispw][self.isol-1],accumScan,accumField,self.spwIndex[ispw])
 					if(self.isol<len(self.solintMap[ispw])):
 						self.accum[ispw].setnsolint(self.solintMap[ispw][self.isol])			
 					self.accum[ispw].resetAccum()
-		endflag=self.accum[0].getEndflag()
+		endflag=self.accum[self.spwGroup[self.curGroup][0]].getEndflag()
 
 		#scan=[-1,-1]
 		#if(endflag):		
@@ -537,6 +573,7 @@ class calibSolver:
 		
 			
 		if(not self.combinespw):
+			
 			for ispw in range(len(self.spwIndex)):
 
 				self.accum[ispw].setHasModel(self.hasmodel)
@@ -544,7 +581,6 @@ class calibSolver:
 				self.isol=0
 				self.findDataShape()
 				self.initializeGains()
-				
 				self.accum[self.ispw].setnsolint(self.solintMap[self.ispw][0])
 				endflag=True
 				while(endflag):	
@@ -561,24 +597,29 @@ class calibSolver:
 		else:	
 			self.initializeGains()
 			self.findDataShape()
-			for ispw in range(len(self.spwIndex)):
-				self.accum[ispw].setHasModel(self.hasmodel)
-				#self.ispw=ispw
+			
+			for ispwGroup in range(len(self.spwGroup)):
+				self.curGroup=ispwGroup
+				casalog.post("Solving spw group: %d/%d"%(ispwGroup+1,len(self.spwGroup)))
+				#casalog.post(np.array2string(self.spwIndex[np.array(self.spwGroup[ispwGroup])))
+				for ispw in self.spwGroup[ispwGroup]:
+					self.accum[ispw].setHasModel(self.hasmodel)
+					#self.ispw=ispw
 
-				self.accum[ispw].setnsolint(self.solintMap[ispw][0])
+					self.accum[ispw].setnsolint(self.solintMap[ispw][0])
 
-			self.isol=0
-			endflag=True
-			while(endflag):	
-				scanstop_=scanstop
-				endflag,scanstop=self.accumulateAndSolveCombSPW()			
-				if(scanstop_<scanstop):
-					self.restoremodel(scanrange)
-					if(scanstop_+1==scanstop):
-						scanrange='%d'%scanstop
-					else:
-						scanrange='%d~%d'%(scanstop_+1,scanstop)
-					self.corrupt(scanrange)
+				self.isol=0
+				endflag=True
+				while(endflag):	
+					scanstop_=scanstop
+					endflag,scanstop=self.accumulateAndSolveCombSPW()			
+					if(scanstop_<scanstop):
+						self.restoremodel(scanrange)
+						if(scanstop_+1==scanstop):
+							scanrange='%d'%scanstop
+						else:
+							scanrange='%d~%d'%(scanstop_+1,scanstop)
+						self.corrupt(scanrange)
 	
 			
 		

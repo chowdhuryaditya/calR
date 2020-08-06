@@ -2,7 +2,7 @@ import bandpassRIO
 
 def bandpassR(vis=None,caltable=None,field='',spw='',selectdata=True,uvrange='',scan='',observation='',
 	             solint='inf',combine='',refant=0,minblperant=6,
-                     minsnr=5,calmode='ap',caltables=True,gaintable=[],gainfield=[],interp=[],spwmap=[],robust=True,outlieralgorithm='RMS',
+                     minsnr=5,calmode='ap',robust=True,outlieralgorithm='RMS',
                      threshold=[7,5,4,3],dosolintflag=True,mingain=1e-2,
                      dividebychanzero=False,chanzerorange='',normamp=True,zerophase=True,preaverage=False,
                      solnorm=True,normchanrange='',normampgains=True,zerophasegains=True,debugmode=False):
@@ -11,7 +11,7 @@ def bandpassR(vis=None,caltable=None,field='',spw='',selectdata=True,uvrange='',
         	uvrange=''
         	scan=''
         	observation=''
-        
+        caltables=False
         if(not caltables):
         	gaintable=[]
         	gainfield=[]

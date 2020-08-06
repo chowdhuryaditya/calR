@@ -32,14 +32,16 @@ class VisAccum
 	private:
 		int nsolint;
 		IPosition getDim(int ntimesample);
+		IPosition dim;
 		void msSelect(string &msname,string &fieldname, string &spw,string &uvrange,string &scan,string &observation,string& poln,int dataDescIndx,int spwIndx);
 		Vector<int> getBaselineIndx(const Vector<int>& ant1,const Vector<int>& ant2);
 		Vector<Slice> getTimeStrides(const Vector<double>& time);
-		void initAccum(const IPosition& dim);
+		void initAccum(IPosition dim);
 		void nextTime();
 		void initIter(double timeInteval);
 		bool accumulate(const Table& tab);
 		bool hasmodel;
+		bool hasWtSpec;
 		MeasurementSet ms;
 		Array<Complex> accumData,accumModel;
 		Array<float> accumWeight;

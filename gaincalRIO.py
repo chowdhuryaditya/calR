@@ -11,10 +11,10 @@ class gaincalR(calRcore.coreIO.calibSolver):
 		self.combinespw=combinespw
 		self.combinecorrnorm=combinecorrnorm
 
-		if(self.combinespw):
-			self.error=self.validateSolint()
-			if(not self.error):
-				print("Cannot combine Spectral Windows. Were different windows observed simultaneously?")
+		#if(self.combinespw):
+		#	self.error=self.validateSolint()
+		#	if(not self.error):
+		#		print("Cannot combine Spectral Windows. Were different windows observed simultaneously?")
 				
 	def initializeGains(self):		
 		self.gains=np.zeros((self.nCorr,1,self.Nant),dtype=np.complex128) 
@@ -71,13 +71,13 @@ class gaincalR(calRcore.coreIO.calibSolver):
 					solver.refant=self.refant
 					
 		else:
-		
 			thisflags=accumfl[:nsamples,goodbl,:,:]
 			if(np.sum(thisflags)==0):
 				casalog.post("No unflagged samples")
 				self.gains[:,0,:]=1+1j*0
 				self.antFlags[:,0,:]=np.zeros(self.Nant,dtype=np.bool)
 				return
+
 			nCorr=accumd.shape[3]
 			nChan=accumd.shape[2]
 			nBaseline=accumd.shape[1]
@@ -85,7 +85,8 @@ class gaincalR(calRcore.coreIO.calibSolver):
 			thisdata=np.swapaxes(accumd[:nsamples,:,:,:].reshape(newshape),0,1)
 			thismodel=np.swapaxes(accummodel[:nsamples,:,:,:].reshape(newshape),0,1)
 			thisflag=np.swapaxes(accumfl[:nsamples,:,:,:].reshape(newshape),0,1)
-			thiswt=np.swapaxes(accumwt[:nsamples,:,:,:].reshape(newshape),0,1)
+			accumwt_tile=np.tile(accumwt,(1,1,nChan//accumwt.shape[2],1))
+			thiswt=np.swapaxes(accumwt_tile[:nsamples,:,:,:].reshape(newshape),0,1)
 			self.gains[0,0,:],self.gains_er[0,0,:],self.antFlags[0,0,:]= solver.solve(thisdata[goodbl,:,:],thismodel[goodbl,:,:],thisflag[goodbl,:,:],thiswt[goodbl,:,:])
 			if(not self.antFlags[0,0,self.refant]):
 				self.gains[0,0,:]=self.gains[0,0,:]*np.exp(1j*np.angle(self.gainsOld[0,0,solver.refant]))					

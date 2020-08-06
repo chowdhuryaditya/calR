@@ -22,7 +22,7 @@ file:///opt/casa/code/xmlcasa/xml/casa.xsd">
 
 		<param type="int" name="boxsize">
 			<description>Size of filtering region in pixels.</description>
-			<value>1</value>
+			<value>-1</value>
 		</param>
 
 		<param type="double" name="threshold">

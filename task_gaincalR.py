@@ -5,7 +5,7 @@ import gaincalRIO
 
 def gaincalR(vis=None,caltable=None,field='',spw='',selectdata=True,uvrange='',scan='',observation='',
 	             solint='inf',combine='',refant=0,minblperant=6,
-                     minsnr=5,calmode='ap',caltables=True,gaintable=[],gainfield=[],interp=[],spwmap=[],
+                     minsnr=5,calmode='ap',
                      robust=True,outlieralgorithm='RMS',
                      threshold=[7,5,4,3],dosolintflag=False,mingain=1e-2,combinepoln=False,combinespw=False,
                      solnorm=False,combinecorrnorm=True,usemedian=True,debugmode=False):
@@ -14,7 +14,7 @@ def gaincalR(vis=None,caltable=None,field='',spw='',selectdata=True,uvrange='',s
         	uvrange=''
         	scan=''
         	observation=''
-        
+        caltables=False
         if(not caltables):
         	gaintable=[]
         	gainfield=[]

@@ -106,7 +106,7 @@ int checkConv(complex<double> *gold,complex<double> *g,bool *antflags,int Nant,d
 
 void getGains(complex<double> *X,complex<double> *g,int *ant1,
             int *ant2,double *wt,bool *antflags,bool *flags, int Nb,int Nant
-            ,double alpha,int refant,double tol,bool doPhase)
+            ,double alpha,int refant,double tol,bool doPhase,bool hasConverged)
 {
     complex<double>* gold=new complex<double>[Nant];
     int nitermax=1000;
@@ -137,7 +137,9 @@ void getGains(complex<double> *X,complex<double> *g,int *ant1,
     	
     }
 	if(niter>=nitermax)
-    		cout<<"Maximum number of iterations exceeded."<<endl<<"Please check solutions carefully"<<endl;
+    		hasConverged=0;
+	else
+		hasConverged=1;
     delete[] gold;
 }
 }

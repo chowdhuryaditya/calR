@@ -95,7 +95,6 @@ class bandpassR(calRcore.coreIO.calibSolver):
 		self.gains=np.zeros((self.nCorr,self.nChan,self.Nant),dtype=np.complex128) 
 		self.gains_er=np.zeros((self.nCorr,self.nChan,self.Nant))
 		self.antFlags=np.zeros((self.nCorr,self.nChan,self.Nant),dtype=np.bool)
-
 		if(self.dividebychanzero):
 			if(self.chanzerorangetxt==''):
 				self.chanzerorange=np.array([0.25*self.nChan,0.75*self.nChan],dtype=np.int)
@@ -110,34 +109,37 @@ class bandpassR(calRcore.coreIO.calibSolver):
 #				if(len(self.chanindex)!=0):
 #					self.normchanrange-=self.chanindex[0,1]
 			
-			
-
+	def centralValue(self,data,flags,axis,keepdims=False):
+		datac=np.copy(data)		
+		datac[np.logical_not(flags)]=np.nan
+		return np.nanmean(datac,axis=axis,keepdims=keepdims)
 	
 	def dividechanzero(self,accumd,accumfl):
-		samples=self.solintMap[self.soli]
-		
-
+		samples=self.solintMap[self.ispw][self.isol]
 		if(self.debug):
 			casalog.post("DEBUG: chanzerorange: %d,%d"%(self.chanzerorange[0],self.chanzerorange[1]))	
 		chanzero=accumd[:samples,:,self.chanzerorange[0]:self.chanzerorange[1],:]
 		chanzeroflags=accumfl[:samples,:,self.chanzerorange[0]:self.chanzerorange[1],:]
-		chanzero=self.centralValue(accumd[:samples,:,self.chanzerorange[0]:self.chanzerorange[1],:],flags=chanzeroflags,axis=1,keepdims=True)
-			
-		chanzeroflags=np.mean(chanzeroflags,axis=1,keepdims=True)
-		chanzeroflags=chanzeroflags>0.1
-			
+
+		chanzero=self.centralValue(data=accumd[:samples,:,self.chanzerorange[0]:self.chanzerorange[1],:], flags=chanzeroflags,axis=2,keepdims=True)
+		chanzeroflags=np.mean(chanzeroflags,axis=2,keepdims=True)
+		chanzeroflags=chanzeroflags>0.001
 		if(self.preaverage):
-			chanzero=self.centralValue(chanzero,flags=chanzeroflags,weights=None,axis=3,keepdims=True)	
+			chanzero=self.centralValue(data=chanzero,flags=chanzeroflags,axis=3,keepdims=True)	
 
 			
 		if(self.normamp and self.zerophase):
-			accumd/=chanzero
+			accumd[:samples]/=chanzero
 		elif(self.normamp):
-			accumd/=np.abs(chanzero)
+			accumd[:samples]/=np.abs(chanzero)
 		elif(self.normphase):
 			chanzero/=np.abs(chanzero)
-			accumd/=chanzero
-		return accumd
+			accumd[:samples]/=chanzero
+		accumfl[np.isnan(accumd)]=False
+		accumfl[np.isinf(accumd)]=False
+		accumd[np.isnan(accumd)]=0.0
+		accumd[np.isinf(accumd)]=0.0
+		return accumd,accumfl
 		'''
 		if(self.debug):	
 			print("DEBUG: computing central value")
@@ -167,19 +169,25 @@ class bandpassR(calRcore.coreIO.calibSolver):
 		
 			
 	def getGains(self,solver,accumd,accummodel,accumwt,accumfl,goodbl):
+
 		if(accumd.shape[2]!=self.gains.shape[1]):
 			print("Sub-selection of channels not supported in bandpassR")
 			self.error=True
 			return
 		if(self.dividebychanzero):
-			accumd=self.dividechanzero(accumd,accumfl) #for divide by chanzero	
+			accumd,accumfl=self.dividechanzero(accumd,accumfl) #for divide by chanzero	
 		nsamples=self.solintMap[self.ispw][self.isol]
+		nchanwt=accumwt.shape[2]
 		for ichan in range(0,self.nChan):
 			if(self.debug):
 				casalog.post('DEBUG: solving channel %d'%ichan)
-				
+			
 			for icorr in range(0,self.nCorr):
-				self.gains[icorr,ichan,:],self.gains_er[icorr,ichan,:],self.antFlags[icorr,ichan,:]=solver.solve(accumd[:nsamples,goodbl,ichan:ichan+1,icorr],accummodel[:nsamples,goodbl,ichan:ichan+1,icorr],accumfl[:nsamples,goodbl,ichan:ichan+1,icorr],accumwt[:nsamples,goodbl,ichan:ichan+1,icorr])
+				if(nchanwt==1):
+					thiswt=accumwt[:nsamples,goodbl,:,icorr]
+				else:
+					thiswt=accumwt[:nsamples,goodbl,ichan:ichan+1,icorr]
+				self.gains[icorr,ichan,:], self.gains_er[icorr,ichan,:],self.antFlags[icorr,ichan,:]= solver.solve(accumd[:nsamples,goodbl,ichan:ichan+1,icorr],accummodel[:nsamples,goodbl,ichan:ichan+1,icorr],accumfl[:nsamples,goodbl,ichan:ichan+1,icorr],thiswt)
 				if(not self.antFlags[icorr,ichan,self.refant]):
 					casalog.post("change in refant")
 					self.gains[icorr,ichan,:]=self.gains[icorr,ichan,:]*np.exp(1j*np.angle(self.gainsOld[icorr,ichan,solver.refant]))					

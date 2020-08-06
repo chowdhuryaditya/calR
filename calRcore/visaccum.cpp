@@ -96,7 +96,7 @@ Vector<int> VisAccum::getBaselineIndx(const Vector<int>& ant1,const Vector<int>&
 		}
 	}
 	cout<<bindx<<endl;
-	cout<<bindxData<<endl;
+
 	**/
 	return bindxArr;
 }
@@ -123,12 +123,27 @@ Vector<Slice> VisAccum::getTimeStrides(const Vector<double>& time)
 	tslice[itime]=Slice(startindxt,i-startindxt,1);
 	return tslice(Slice(0,itime+1,1));
 }
-void VisAccum::initAccum(const IPosition& dim)
+void VisAccum::initAccum(IPosition dim)
 {
 	accumData=Array<Complex>(dim);
 	accumModel=Array<Complex>(dim);
-	accumWeight=Array<float>(dim);
 	accumFlag=Array<bool>(dim);
+	ArrayColumn<float> _weight; 
+	try
+	{
+		hasWtSpec=true;
+	 	_weight=ArrayColumn<float>(msIter->table(), MS::columnName(MS::SIGMA_SPECTRUM));
+		IPosition tmp=_weight.shape(0); //CHECK IMPLICATIONS OF THIS LINE
+		cout<<"testing this:"<<tmp<<endl;
+	}
+	catch(...)
+	{
+		hasWtSpec=false;
+		_weight=ArrayColumn<float>(msIter->table(), MS::columnName(MS::SIGMA));
+		dim[1] =1;
+	}
+	accumWeight=Array<float>(dim);
+
 	iterData=new ArrayIterator<Complex>(accumData,3);
 	iterWeight=new ArrayIterator<float>(accumWeight,3);
 	iterModel=new ArrayIterator<Complex>(accumModel,3);
@@ -141,6 +156,7 @@ void VisAccum::resetAccum()
 	accumScan=-1;
 	accumSPW=-1;
 	accumModel=1;
+	accumWeight=(float)0.0;
 	iterData->reset();
 	iterWeight->reset();
 	iterModel->reset();
@@ -163,7 +179,6 @@ bool VisAccum::accumulate(const Table& tab)
 	Cube<bool> flag;
 	Vector<int> bindx;
 	Vector<Slice> tslice;
-
 	ScalarColumn<Int> _ant1 (tab,  MS::columnName(MS::ANTENNA1));
 	ScalarColumn<Int> _ant2 (tab, MS::columnName(MS::ANTENNA2));
 	ScalarColumn<double> _time (tab, MS::columnName(MS::TIME));
@@ -176,7 +191,15 @@ bool VisAccum::accumulate(const Table& tab)
 	ArrayColumn<Complex> _model;
 	if(hasmodel)
 		_model=ArrayColumn<Complex>(tab, MS::columnName(MS::MODEL_DATA));
-	ArrayColumn<float> _weight (tab, MS::columnName(MS::WEIGHT_SPECTRUM));
+	ArrayColumn<float> _weight;
+	if(hasWtSpec)
+	{
+	 	_weight=ArrayColumn<float>(tab, MS::columnName(MS::SIGMA_SPECTRUM));
+	}
+	else
+	{
+		_weight=ArrayColumn<float>(tab, MS::columnName(MS::SIGMA));
+	}
 	ArrayColumn<bool> _flag (tab, MS::columnName(MS::FLAG));
 
 
@@ -189,7 +212,21 @@ bool VisAccum::accumulate(const Table& tab)
 	if(hasmodel)
 		model.reference(_model.getColumn(cslice));
 	flag.reference(_flag.getColumn(cslice));
-	weight.reference(_weight.getColumn(cslice));
+	//cout<<hasWtSpec<<endl;
+	if(hasWtSpec)
+		weight.reference(_weight.getColumn(cslice));
+	else
+	{
+		
+		IPosition dim(3);
+		dim[0]=data.shape()[0];
+		dim[1]=1;
+		dim[2]=data.shape()[2];
+		Vector< Vector<Slice> > cslice_tmp;
+		cslice_tmp.resize(1);
+		cslice_tmp[0]=cslice[0];
+		weight.reference(_weight.getColumn(cslice_tmp).reform(dim));
+	}
 	tslice=getTimeStrides(time);
 	//cout<<tstart<<","<<tslice.shape()[0]<<endl;
 	for (int i=tstart;i<tslice.shape()[0];i++)
@@ -197,7 +234,6 @@ bool VisAccum::accumulate(const Table& tab)
 		//cout<<"i:"<<i<<endl;
 		//cout<<tslice[i]<<endl;
 		bindx.reference(getBaselineIndx(_ant1.getColumnRange(tslice[i]),_ant2.getColumnRange(tslice[i])));
-
 
 		accumTime+=time[tslice[i].start()];
 		accumScan=scan[tslice[i].start()];
@@ -213,6 +249,7 @@ bool VisAccum::accumulate(const Table& tab)
 			Cube<float>(iterWeight->array()).xyPlane((bindx)[k])=weight.xyPlane(irow);
 			Cube<bool>(iterFlag->array()).xyPlane((bindx)[k])=flag.xyPlane(irow);	
 		}
+
 		nsolint--;
 		if(nsolint==0)
 		{
@@ -222,7 +259,8 @@ bool VisAccum::accumulate(const Table& tab)
 		}
 		nextTime();
 	} 
-
+	//cout<<Cube<float>(iterWeight->array()).shape()<<endl;
+	//cout<<Cube<float>(iterWeight->array()).xyPlane(0)<<endl;
 	tstart=0;
 	return true;
 }

@@ -92,31 +92,7 @@ file:///opt/casa/code/xmlcasa/xml/casa.xsd">
               <value>a</value>
 	  </allowed>
     </param>
-     <param type="bool" name="caltables" >
-	        <description>Apply calibration tables before solving</description>
-	        <value>True</value>
-    </param>
-
-	
-	<param type="stringArray" name="gaintable" subparam="true">
-		<description>Gain calibration table(s) to apply on the fly</description>
-		<value></value>
-	</param>
-
-	<param type="stringArray" name="gainfield" subparam="true">
-		<description>Select a subset of calibrators from gaintable(s)</description>
-		<value></value>
-	</param>
-
-	<param type="stringArray" name="interp" subparam="true">
-		<description>Temporal interpolation for each gaintable (''=linear)</description>
-		<value></value>
-	</param>
-
-	<param type="intArray" name="spwmap" subparam="true">
-		<description>Spectral windows combinations to form for gaintables(s)</description>
-		<value></value>
-	</param>
+  
 	 
 	  <param type="bool" name="robust">
       <description>Perform robust calibration using an outlier detection algorithm.</description>
@@ -253,16 +229,6 @@ file:///opt/casa/code/xmlcasa/xml/casa.xsd">
 		</equals>
 		<equals type="bool" value="False"/>
 	</when>
-	<when param="caltables">
-                <equals type="bool" value="True">
-                        <default param="gaintable"><value type="stringArray"/></default>
-                        <default param="gainfield"><value type="stringArray"/></default>
-                        <default param="interp"><value type="stringArray"/></default>
-                        <default param="spwmap"><value type="intArray"/></default>
-		</equals>
-                <equals type="bool" value="False">
-		</equals>
-        </when>
 </constraints>
   </input>
 

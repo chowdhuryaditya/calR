@@ -13,15 +13,32 @@ def removenegetive(imname,boxsize,threshold,mtmfs=True,nterms=3,plotslices=False
 		ia.open(imname+".model")
 		im=ia.getchunk()
 		ia.close()
-
+	imsize=im.shape[0]
+	if(boxsize==-1):
+		boxsize=imsize
 	niter=0
+
 	casalog.post("Total flux before thresholding : %.1f mJy"%(np.sum(im)*1e3))
 	if(debugmode):
-		casalog.post("Total number of points below threshold:%d"%np.sum(im<threshold))
-	while(np.min(im)<threshold):
-		minpoint=np.unravel_index(np.argmin(im, axis=None), im.shape)
+		casalog.post("Total number of points below threshold:%d"%np.sum(np.logical_and(np.abs(im)>1e-12,im<threshold)))
+	while(np.min(im[np.abs(im)>1e-12])<threshold):
+		imnonzero=np.copy(im)
+		imnonzero[np.abs(im)<1e-12]=np.nan
+		minpoint=np.unravel_index(np.nanargmin(imnonzero, axis=None), im.shape)
 		minimumflux=im[minpoint]
-		localslice=im[minpoint[0]-boxsize//2:minpoint[0]+boxsize//2,minpoint[1]-boxsize//2:minpoint[1]+boxsize//2,0,0]
+		xlow=minpoint[0]-boxsize//2
+		xhigh=minpoint[0]+boxsize//2
+		ylow=minpoint[1]-boxsize//2
+		yhigh=minpoint[1]+boxsize//2
+		if(xlow<0):
+			xlow=0
+		if(ylow<0):
+			ylow=0
+		if(xhigh>imsize-1):
+			xhigh=imsize-1
+		if(yhigh>imsize-1):
+			yhigh=imsize-1
+		localslice=im[xlow:xhigh,ylow:yhigh,0,0]
 		if(debugmode):
 			casalog.post("Iteration - %d; minimum at (%d,%d): %.3f mJy"%(niter+1,minpoint[0],minpoint[1],minimumflux*1e3))
 		if(plotslices):
@@ -29,12 +46,13 @@ def removenegetive(imname,boxsize,threshold,mtmfs=True,nterms=3,plotslices=False
 			plt.imshow(localslice)
 			plt.colorbar()
 			plt.show()
-
-		localslice[localslice<np.abs(minimumflux)]=0.0
-		im[minpoint[0]-boxsize//2:minpoint[0]+boxsize//2,minpoint[1]-boxsize//2:minpoint[1]+boxsize//2,0,0]=localslice
+		localslice[localslice<=np.abs(minimumflux)]=0.0
+		im[xlow:xhigh,ylow:yhigh,0,0]=localslice
 		niter+=1
+
+
 	casalog.post("Total flux after thresholding : %.1f mJy"%(np.sum(im)*1e3))
-	zeromask=im<1e-9
+	zeromask=np.abs(im)<1e-12
 	if(mtmfs):
 		for i in range(0,nterms):
 			os.system("cp -r %s.model.tt%d %s_noneg.model.tt%d"%(imname,i,imname,i))

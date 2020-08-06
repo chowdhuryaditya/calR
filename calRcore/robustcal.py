@@ -62,6 +62,7 @@ class rantsol:
 		else:
 			sigma_r=1.4826*np.median(np.abs(realflags))	
 			sigma_i=1.4826*np.median(np.abs(imagflags))	
+
 		flags_r=np.abs(real)<=self.nsigma*sigma_r	
 		flags_i=np.abs(imag)<=self.nsigma*sigma_i
 		return np.logical_and(flags_r,flags_i)
@@ -75,7 +76,7 @@ class rantsol:
 			fl[flags]=self.outlierDetect(X[flags]/np.abs(X[flags])-g[self.ant1][flags]*gs[self.ant2][flags],olderflags[flags])
 		else:
 			fl[flags]=self.outlierDetect(X[flags]-g[self.ant1][flags]*gs[self.ant2][flags],olderflags[flags])
-		#antflags[np.abs(g)<self.mingain]=False
+		antflags[np.abs(g)<self.mingain]=False
 		for i in range(0,self.Nant):	
 			if((np.sum(fl[self.ant1==i])+np.sum(fl[self.ant2==i]))<self.minblperant):
 				antflags[i]=False
@@ -188,14 +189,19 @@ class rantsol:
 		if(X_full.shape[1]*X_full.shape[2]==1):
 			self.dosolintflag=False
 		#avoiding infinity and NaN's
-		indx=(np.abs(model_full)<1e-20)
+		indx=(np.abs(model_full)<1e-20)		
+		flags_full[indx]=False	
+		indx=(np.abs(X_full)<1e-20)		
 		flags_full[indx]=False	
 		weights_full=1.0/sigma_full**2
 		weights_full[sigma_full<1e-20]=0.0
+		weights_full[np.isnan(sigma_full)]=0.0
+		weights_full[np.isinf(sigma_full)]=0.0
 		X,flags=self.centralValue(X_full,model_full,flags_full,weights=weights_full)
 		wt=self.getweights(model_full,flags_full,weights_full)
 		self.counterlocal=0
 		doPhase=False
+		hasGainConverged=False
 		fl=np.ones(self.Nb,dtype=np.bool)
 		antflags=np.ones(self.Nant,dtype=np.bool)
 		antlist=np.arange(self.Nant)
@@ -226,10 +232,10 @@ class rantsol:
 					ctypes.c_int(self.Nb),
 					ctypes.c_int(self.Nant),
 					ctypes.c_double(self.alpha),ctypes.c_int(self.refant),
-					ctypes.c_double(self.delta),ctypes.c_bool(doPhase))
+					ctypes.c_double(self.delta),ctypes.c_bool(doPhase),ctypes.c_bool(hasGainConverged))
 			self.timeOnSolver+=clock.time()
 		def checkConv():
-			cnt=solver.checkConv(g_old.ctypes.data,g.ctypes.data,
+			cnt=solver.checkConv(ctypes.c_void_p(g_old.ctypes.data),ctypes.c_void_p(g.ctypes.data),
 					 antflags.ctypes.data_as(ctypes.POINTER(ctypes.c_bool)),
 					 ctypes.c_int(self.Nant),ctypes.c_double(self.delta))
 			return cnt
@@ -279,6 +285,7 @@ class rantsol:
 							
 						else:
 							self.refant=antlist[antflags][0]
+			#print("hasGainConverged: %d"%hasGainConverged)
 			#finalchi2=chisqr()
 			#print("fractional chisqr change:%f"%((initchi2-finalchi2)/initchi2))
 			if(self.calmode=='p'):				
@@ -293,7 +300,9 @@ class rantsol:
 				converged=True
 			if(np.sum(antflags)==0):
 				break
-			
+
+		if(np.sum(antflags)>0 and hasGainConverged==True):
+			print("Warning: Gain solutions have not converged; Maximum iteration exceeded")	
 		g[np.logical_not(antflags)]=1.0+1j*0.0
 		self.counterglobal+=1
 		#if(self.debug):
