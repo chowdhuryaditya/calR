@@ -9,10 +9,10 @@ imthreshold : Task to remove negetives from model image.
 --------------------------
 
 Instruction for installing calR
-1) Extract calR_v3.1_precompile.tar.gz [tar -xvf calR_v3.1_precompile.tar.gz]
+1) Extract calR_v3.2_precompile.tar.gz [tar -xvf calR_v3.2_precompile.tar.gz]
 
 
-2) cd calR_v3.0_precompile 
+2) cd calR_v3.2_precompile 
    run CASA in the directory and on the ipython shell run :
    os.system('buildmytasks')
    [This should create multiple files in the directory including a 'gaincalR.py' file]
