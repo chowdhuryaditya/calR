@@ -1,31 +1,41 @@
 #include<visaccum.h>
-
+using namespace casacore;
+using namespace boost::python;
 VisAccum::VisAccum(string msname,string fieldname, string spw,string uvrange,string scan,string observation,string poln,int ntimesample,double timeInverval,int dataDescIndx,int spwIndx)
 {
 	msSelect(msname,fieldname,spw,uvrange,scan,observation,poln,dataDescIndx,spwIndx);
 	MeasurementSet msOriginal(msname);
 	nant=ROMSAntennaColumns(msOriginal.antenna()).nrow();
-	
-	initIter(timeInverval);
+	nrowstepMax=10000;
+	tstart=0;
+	curRow=0;
+	nrow=ms.nrow();
+	//cout<<nrow<<endl;
+
 	initAccum(getDim(ntimesample));	
 	resetAccum();
-	tstart=0;
+
+	endflag=1;
+	endreadflag=1;
 	hasmodel=false;
 	
 }
 void VisAccum::setHasModel(bool _hasmodel)
 {
 	hasmodel=_hasmodel;
+	initIter();	
 }
 IPosition VisAccum::getDim(int ntimesample)
 {
+	Block<int> sort(1);
+	sort[0] = MS::TIME;
 	IPosition dim(4);
 	dim[2]=(nant*(nant-1))/2;
 	
 	dim[3]=ntimesample;
-	ArrayColumn<Complex> _data (msIter->table(),  MS::columnName(MS::DATA));
-	Array<Complex> data=_data.getColumn(cslice);
-
+	ArrayColumn<Complex> _data (ms,  MS::columnName(MS::DATA));
+	Array<Complex> data=_data.getSlice(0,cslice);
+	//cout<<data.shape()<<endl;
 	dim[0]=data.shape()[0];
 	dim[1]=data.shape()[1];
 	
@@ -62,12 +72,13 @@ void VisAccum::msSelect(string &msname,string &fieldname, string &spw,string &uv
 	
 	mssSetData2(msOriginal,ms,"",timeExpr,antennaExpr,fieldExpr,thisSpw.str(), uvDistExpr,taQLExpr,polnExpr, scanExpr,arrayExpr,stateExpr,obsExpr,feedExpr);
 
+
 	select.getChanSlices(chanslices,&msOriginal);
 	select.getCorrSlices(corrslices,&msOriginal);
 	cslice.resize(2);
 	cslice[0]=corrslices[0];
 	cslice[1]=chanslices[dataDescIndx];
-	//cout<<cslice<<endl;
+	
 }
 Vector<int> VisAccum::getBaselineIndx(const Vector<int>& ant1,const Vector<int>& ant2)
 {
@@ -96,7 +107,6 @@ Vector<int> VisAccum::getBaselineIndx(const Vector<int>& ant1,const Vector<int>&
 		}
 	}
 	cout<<bindx<<endl;
-
 	**/
 	return bindxArr;
 }
@@ -112,7 +122,7 @@ Vector<Slice> VisAccum::getTimeStrides(const Vector<double>& time)
 		
 		if(time[i]>curt)
 		{
-			tslice[itime]=Slice(startindxt,i-startindxt,1);
+			tslice[itime]=Slice(curRow+startindxt,i-startindxt,1);
 			curt=time[i];
 			itime++;
 			startindxt=i;
@@ -120,7 +130,7 @@ Vector<Slice> VisAccum::getTimeStrides(const Vector<double>& time)
 		i++;
 		
 	}
-	tslice[itime]=Slice(startindxt,i-startindxt,1);
+	tslice[itime]=Slice(curRow+startindxt,i-startindxt,1);
 	return tslice(Slice(0,itime+1,1));
 }
 void VisAccum::initAccum(IPosition dim)
@@ -132,14 +142,13 @@ void VisAccum::initAccum(IPosition dim)
 	try
 	{
 		hasWtSpec=true;
-	 	_weight=ArrayColumn<float>(msIter->table(), MS::columnName(MS::SIGMA_SPECTRUM));
+	 	_weight=ArrayColumn<float>(ms, MS::columnName(MS::SIGMA_SPECTRUM));
 		IPosition tmp=_weight.shape(0); //CHECK IMPLICATIONS OF THIS LINE
-		cout<<"testing this:"<<tmp<<endl;
 	}
 	catch(...)
 	{
 		hasWtSpec=false;
-		_weight=ArrayColumn<float>(msIter->table(), MS::columnName(MS::SIGMA));
+		_weight=ArrayColumn<float>(ms, MS::columnName(MS::SIGMA));
 		dim[1] =1;
 	}
 	accumWeight=Array<float>(dim);
@@ -169,78 +178,129 @@ void VisAccum::nextTime()
 	iterModel->next();
 	iterFlag->next();	
 }
-bool VisAccum::accumulate(const Table& tab)
+long int VisAccum::getnRow()
 {
-	Vector<Int> ant1,ant2,scan,spw,field;
-	Vector<double> time;
-	//double time;
-	Cube<Complex> data,model;
-	Cube<float> weight;
-	Cube<bool> flag;
-	Vector<int> bindx;
-	Vector<Slice> tslice;
-	ScalarColumn<Int> _ant1 (tab,  MS::columnName(MS::ANTENNA1));
-	ScalarColumn<Int> _ant2 (tab, MS::columnName(MS::ANTENNA2));
-	ScalarColumn<double> _time (tab, MS::columnName(MS::TIME));
-	ScalarColumn<int> _scan (tab, MS::columnName(MS::SCAN_NUMBER));
-	ScalarColumn<int> _spw (tab, MS::columnName(MS::DATA_DESC_ID));
-	ScalarColumn<int> _field (tab, MS::columnName(MS::FIELD_ID));
+
+	Vector<double> time2;
+	ScalarColumn<double> _time (ms, MS::columnName(MS::TIME));
+	Slicer rsel=Slicer(Slice(curRow,nrowstepMax));
+	time2.reference(_time.getColumnRange(rsel));
+	long int length=time2.shape()[0];
+	for(long int i=length-1;i>0;i--)
+	{
+		if(time2[i]!=time2[i-1])
+		{
+			return i;
+		}
+	}
+	return 0;
 	
-	ArrayColumn<Complex> _data (tab,  MS::columnName(MS::DATA));
+}
+void VisAccum::readFromMS()
+{
+	//cout<<nrowstep<<endl;
+	data.reference(Cube<Complex>(accumData.shape()[0],accumData.shape()[1],nrowstep));
+	model.reference(Cube<Complex>(accumData.shape()[0],accumData.shape()[1],nrowstep));
+	flag.reference(Cube<bool> (accumData.shape()[0],accumData.shape()[1],nrowstep));
+	if(hasWtSpec)
+		weight.reference(Cube<float>(accumData.shape()[0],accumData.shape()[1],nrowstep));
+	else
+		weight.reference(Cube<float>(accumData.shape()[0],1,nrowstep));
+
+	//cout<<data.shape()<<endl;
+	ScalarColumn<Int> _ant1 (ms,  MS::columnName(MS::ANTENNA1));
+	ScalarColumn<Int> _ant2 (ms, MS::columnName(MS::ANTENNA2));
+	ScalarColumn<double> _time (ms, MS::columnName(MS::TIME));
+	ScalarColumn<int> _scan (ms, MS::columnName(MS::SCAN_NUMBER));
+	ScalarColumn<int> _spw (ms, MS::columnName(MS::DATA_DESC_ID));
+	ScalarColumn<int> _field (ms, MS::columnName(MS::FIELD_ID));
+	
+	ArrayColumn<Complex> _data (ms,  MS::columnName(MS::DATA));
 	
 	ArrayColumn<Complex> _model;
+	
 	if(hasmodel)
-		_model=ArrayColumn<Complex>(tab, MS::columnName(MS::MODEL_DATA));
+		_model=ArrayColumn<Complex>(ms, MS::columnName(MS::MODEL_DATA));
 	ArrayColumn<float> _weight;
 	if(hasWtSpec)
 	{
-	 	_weight=ArrayColumn<float>(tab, MS::columnName(MS::SIGMA_SPECTRUM));
+	 	_weight=ArrayColumn<float>(ms, MS::columnName(MS::SIGMA_SPECTRUM));
 	}
 	else
 	{
-		_weight=ArrayColumn<float>(tab, MS::columnName(MS::SIGMA));
+		_weight=ArrayColumn<float>(ms, MS::columnName(MS::SIGMA));
 	}
-	ArrayColumn<bool> _flag (tab, MS::columnName(MS::FLAG));
+	ArrayColumn<bool> _flag (ms, MS::columnName(MS::FLAG));
 
 
-	time.reference(_time.getColumn());
-	scan.reference(_scan.getColumn());
-	spw.reference(_spw.getColumn());
-	field.reference(_field.getColumn());
-	data.reference(_data.getColumn(cslice));
-	//cout<<data.shape()<<endl;
-	if(hasmodel)
-		model.reference(_model.getColumn(cslice));
-	flag.reference(_flag.getColumn(cslice));
-	//cout<<hasWtSpec<<endl;
-	if(hasWtSpec)
-		weight.reference(_weight.getColumn(cslice));
-	else
+	time.reference(_time.getColumnRange(rowselect));
+
+	scan.reference(_scan.getColumnRange(rowselect));
+	spw.reference(_spw.getColumnRange(rowselect));
+	field.reference(_field.getColumnRange(rowselect));
+	
+	for(int irow=0;irow<nrowstep;irow++)
 	{
+		data.xyPlane(irow)=_data.getSlice(irow+curRow,cslice);
+		flag.xyPlane(irow)=_flag.getSlice(irow+curRow,cslice);
 		
-		IPosition dim(3);
+	}
+	if(hasmodel)
+	{
+		for(int irow=0;irow<nrowstep;irow++)
+		{
+			model.xyPlane(irow)=_model.getSlice(irow+curRow,cslice);
+		}
+	}
+	if(hasWtSpec)
+	{
+		for(int irow=0;irow<nrowstep;irow++)
+		{
+			weight.xyPlane(irow)=_weight.getSlice(irow+curRow,cslice);
+		}
+	}
+	else
+	{
+			
+		IPosition dim(2);
 		dim[0]=data.shape()[0];
 		dim[1]=1;
-		dim[2]=data.shape()[2];
 		Vector< Vector<Slice> > cslice_tmp;
 		cslice_tmp.resize(1);
 		cslice_tmp[0]=cslice[0];
-		weight.reference(_weight.getColumn(cslice_tmp).reform(dim));
+		for(int irow=0;irow<nrowstep;irow++)
+		{
+			weight.xyPlane(irow)=_weight.getSlice(irow+curRow,cslice_tmp).reform(dim);
+		}
 	}
+}
+
+
+bool VisAccum::accumulate()
+{
+
+	
+	//cout<<hasWtSpec<<endl;
+
+	Vector<int> bindx;
+	Vector<Slice> tslice;
+	ScalarColumn<Int> _ant1 (ms,  MS::columnName(MS::ANTENNA1));
+	ScalarColumn<Int> _ant2 (ms, MS::columnName(MS::ANTENNA2));
 	tslice=getTimeStrides(time);
+	int sindx;
 	//cout<<tstart<<","<<tslice.shape()[0]<<endl;
 	for (int i=tstart;i<tslice.shape()[0];i++)
 	{	
 		//cout<<"i:"<<i<<endl;
 		//cout<<tslice[i]<<endl;
 		bindx.reference(getBaselineIndx(_ant1.getColumnRange(tslice[i]),_ant2.getColumnRange(tslice[i])));
-
-		accumTime+=time[tslice[i].start()];
-		accumScan=scan[tslice[i].start()];
-		accumSPW=spw[tslice[i].start()];
-		accumField=field[tslice[i].start()];
+		sindx=tslice[i].start()-curRow;
+		accumTime+=time[sindx];
+		accumScan=scan[sindx];
+		accumSPW=spw[sindx];
+		accumField=field[sindx];
 		//cout<<accumScan<<","<<accumField<<endl;
-		for(int k=0,irow=tslice[i].start();k<(bindx).shape()[0];k++,irow++)
+		for(int k=0,irow=sindx;k<(bindx).shape()[0];k++,irow++)
 		{
 			//cout<<k<<","<<bindx[k]<<","<<irow<<endl;
 			Cube<Complex>(iterData->array()).xyPlane((bindx)[k])=data.xyPlane(irow);	
@@ -263,30 +323,53 @@ bool VisAccum::accumulate(const Table& tab)
 	//cout<<Cube<float>(iterWeight->array()).xyPlane(0)<<endl;
 	tstart=0;
 	return true;
+	
 }
-void VisAccum::initIter(double timeInteval)
+void VisAccum::initIter()
 {
-	Block<int> sort(1);
+	//Block<int> sort(1);
 	//sort[1] = MS::SPECTRAL_WINDOW;
 	//sort[0] = MS::ANTENNA1;
 	//sort[1] = MS::ANTENNA2;
-	sort[0] = MS::TIME;
+	//sort[0] = MS::TIME;
 	//sort[1] = MS::ARRAY_ID;
 	//sort[2] = MS::DATA_DESC_ID;
-	msIter=new MSIter(ms,sort,timeInteval,false,false);
-	msIter->origin();
+	//msIter=new MSIter(ms,sort,timeInteval,false,false);
+	//msIter->origin();
+	curRow=0;
+	nrowstep=getnRow();
+	rowselect=Slicer(Slice(0,nrowstep));
+	readFromMS();
+	
 }
 bool VisAccum::nextIter()
 {
 	int i=0;
 	bool donext;	
 	
-	donext=accumulate(msIter->table());
+	donext=accumulate();
 	//cout<<"donext:"<<donext<<endl;
+	if(donext and !endreadflag)
+	{
+		endflag=0;
+	}
+	if(donext and endreadflag)
+	{
+		curRow+=nrowstep;
+		if(curRow+nrowstepMax>nrow)
+		{
+			nrowstep=nrow-curRow;
+			endreadflag=0;
+		}
+		else
+		{
+			nrowstep=getnRow();
+		}
+		rowselect=Slicer(Slice(curRow,nrowstep));
+		readFromMS();
+
+	}
 	
-	if(donext)
-		(*msIter)++;
-	endflag=msIter->more();
 	//cout<<"endflag:"<<endflag<<endl;
 	return (!donext);
 	
@@ -303,16 +386,44 @@ int VisAccum::getNant()
 {
 	return nant;
 }
-PyObject*  VisAccum::getAccum()
+boost::python::object VisAccum::getData()
 {
 	PyObject *pyData,*pyModel,*pyWeight,*pyFlag;
 	pyData=casacore::python::casa_array_to_python<Complex>::convert(accumData);
-	pyModel=casacore::python::casa_array_to_python<Complex>::convert(accumModel);
-	pyWeight=casacore::python::casa_array_to_python<float>::convert(accumWeight);
-	pyFlag=casacore::python::casa_array_to_python<bool>::convert(accumFlag);
-	return Py_BuildValue("diiiOOOO",accumTime,accumScan,accumSPW,accumField,pyData,pyModel,pyWeight,pyFlag);
+	
+	boost::python::handle<> handleData(pyData);
+	
+	return boost::python::object(handleData);
 }
-
+boost::python::object VisAccum::getModel()
+{
+	PyObject *pyModel;
+	
+	pyModel=casacore::python::casa_array_to_python<Complex>::convert(accumModel);
+	boost::python::handle<> handleModel(pyModel);
+	
+	return boost::python::object(handleModel);
+}
+boost::python::object VisAccum::getWeight()
+{
+	PyObject *pyWeight;
+	pyWeight=casacore::python::casa_array_to_python<float>::convert(accumWeight);
+	boost::python::handle<> handleWeight(pyWeight);
+	return boost::python::object(handleWeight);
+}
+boost::python::object VisAccum::getFlag()
+{
+	PyObject *pyFlag;
+	pyFlag=casacore::python::casa_array_to_python<bool>::convert(accumFlag);	
+	boost::python::handle<> handleFlag(pyFlag);
+	return boost::python::object(handleFlag);
+}
+PyObject*  VisAccum::getAccum()
+{
+	PyObject* PyReturnval= Py_BuildValue("diii",accumTime,accumScan,accumSPW,accumField);
+	return PyReturnval;
+	
+}
 BOOST_PYTHON_MODULE(VisAccum)
 {
      class_<VisAccum>("VisAccum",init<string,string,string,string,string,string,string,int,double,int,int>())
@@ -320,8 +431,15 @@ BOOST_PYTHON_MODULE(VisAccum)
         .def("nextIter", &VisAccum::nextIter)
 	.def("setnsolint", &VisAccum::setnsolint)
 	.def("getEndflag",&VisAccum::getEndflag)
+
 	.def("getAccum",&VisAccum::getAccum)
+	.def("getData",&VisAccum::getData)
+	.def("getModel",&VisAccum::getModel)
+	.def("getWeight",&VisAccum::getWeight)
+	.def("getFlag",&VisAccum::getFlag)
+
 	.def("getNant",&VisAccum::getNant)
 	.def("setHasModel",&VisAccum::setHasModel)
     ;
 }
+

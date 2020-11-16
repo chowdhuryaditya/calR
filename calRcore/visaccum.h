@@ -15,49 +15,68 @@
 #include <casacore/casa/Arrays/IPosition.h>
 #include <casacore/python/Converters/PycArray.h>
 using namespace std;
-using namespace casacore;
-using namespace boost::python;
+
 class VisAccum
 {
 	public:
-		VisAccum(string msname,string fieldname, string spw,string uvrange,string scan,string observation,string poln,int ntimesample,double _timeInverval,int dataDescIndx,int spwIndx);
+		VisAccum(string msname,string fieldname, string spw,string uvrange,string scan,string observation,string poln,int ntimesample,double timeInverval,int dataDescIndx,int spwIndx);
 		void resetAccum();
 		void setnsolint(int nsolint);
 		bool getEndflag();
 		bool nextIter();
 		int getNant();
 		void setHasModel(bool _hasmodel);
+		boost::python::object getData();
+		boost::python::object getModel();
+		boost::python::object getWeight();
+		boost::python::object getFlag();
 		PyObject*  getAccum();
 		
 	private:
+		casacore::Vector<casacore::Int> ant1,ant2,scan,spw,field;
+		casacore::Vector<double> time;
+		casacore::Cube<casacore::Complex> data;
+		casacore::Cube<casacore::Complex> model;
+		casacore::Cube<bool> flag;
+		casacore::Cube<float> weight;
+
 		int nsolint;
-		IPosition getDim(int ntimesample);
-		IPosition dim;
-		void msSelect(string &msname,string &fieldname, string &spw,string &uvrange,string &scan,string &observation,string& poln,int dataDescIndx,int spwIndx);
-		Vector<int> getBaselineIndx(const Vector<int>& ant1,const Vector<int>& ant2);
-		Vector<Slice> getTimeStrides(const Vector<double>& time);
-		void initAccum(IPosition dim);
+		unsigned long int curRow;
+		unsigned long int nrow;
+		unsigned int nrowstepMax;
+		unsigned int nrowstep;
+		casacore::Slicer rowselect;
+		double timeInterval;
+		casacore::IPosition getDim(int ntimesample);
+		casacore::IPosition dim;
+		void msSelect(string &msname,string &fieldname, string &spw,string &uvrange,string &scan,string &observation,string &poln,int dataDescIndx,int spwIndx);
+		casacore::Vector<int> getBaselineIndx(const casacore::Vector<int>& ant1,const casacore::Vector<int>& ant2);
+		casacore::Vector<casacore::Slice> getTimeStrides(const casacore::Vector<double>& time);
+		void initAccum(casacore::IPosition dim);
 		void nextTime();
-		void initIter(double timeInteval);
-		bool accumulate(const Table& tab);
+		void readFromMS();
+		void initIter();
+		long int getnRow();
+		bool accumulate();
 		bool hasmodel;
 		bool hasWtSpec;
-		MeasurementSet ms;
-		Array<Complex> accumData,accumModel;
-		Array<float> accumWeight;
-		Array<bool> accumFlag;
-		MSIter* msIter;
+		casacore::MeasurementSet ms;
+		casacore::Array<casacore::Complex> accumData,accumModel;
+		casacore::Array<float> accumWeight;
+		casacore::Array<bool> accumFlag;
+		//casacore::MSIter* msIter;
 		double accumTime;
-		bool endflag;
+		bool endflag,endreadflag;
 		int tstart;
 		int accumScan;
 		int accumSPW,accumField;
-		Vector<int> solintMap;
-		ArrayIterator<Complex>* iterData;
-		ArrayIterator<float>* iterWeight;
-		ArrayIterator<Complex>* iterModel;
-		ArrayIterator<bool>* iterFlag;
-		Vector< Vector<Slice> > cslice;
+		casacore::Vector<int> solintMap;
+		casacore::ArrayIterator<casacore::Complex>* iterData;
+		casacore::ArrayIterator<float>* iterWeight;
+		casacore::ArrayIterator<casacore::Complex>* iterModel;
+		casacore::ArrayIterator<bool>* iterFlag;
+		casacore::Vector< casacore::Vector<casacore::Slice> > cslice;
+		casacore::Slicer cslicer;
 		int nant;
 	
 };

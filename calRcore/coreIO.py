@@ -54,7 +54,7 @@ class calibSolver:
 		self.error=False	
 		self.dataDescIndex,self.spwIndex=self.getSpwMap() 
 		self.nCorr,self.totalIpoln=self.getPolnTypes()	
-		casalog.post("CalR_v3.2")
+		casalog.post("CalR_v3.3")
 		if(self.debug):
 			self.initDebugCounters()			
 		else:
@@ -396,6 +396,7 @@ class calibSolver:
 		for ispw in range(len(self.dataDescIndex)):
 			#if(self.debug):
 			#	casalog.post(self.vis,self.field,self.spw,self.uvrange,self.scan,self.observation,np.max(self.solintMap[ispw]),float(self.tblock),int(self.dataDescIndex[ispw]),int(self.spwIndex[ispw]))		
+
 			self.accum.append(VisAccum.VisAccum(self.vis, self.field,self.spw, self.uvrange,self.scan,self.observation,self.totalIpoln,np.max(self.solintMap[ispw]), float(self.tblock),int(self.dataDescIndex[ispw]),int(self.spwIndex[ispw])))
 		
 		
@@ -452,7 +453,12 @@ class calibSolver:
 		while(dosolve):
 			dosolve=self.accum[ispw].nextIter()
 			if(dosolve):					
-				accumTime,accumScan,accumSPW,accumField,accumData,accumModel,accumWeight,accumFlag=self.accum[ispw].getAccum()
+				accumTime,accumScan,accumSPW,accumField =self.accum[ispw].getAccum()
+				accumData=self.accum[ispw].getData()
+				accumModel=self.accum[ispw].getModel()
+				accumFlag=self.accum[ispw].getFlag()
+				accumWeight=self.accum[ispw].getWeight()
+
 				self.coreSolve(accumData,accumModel,accumWeight,accumFlag)
 				self.putInTable(self.gains,self.gains_er,self.snr,np.logical_not(self.antFlags),accumTime/self.solintMap[ispw][self.isol],accumScan,accumField,self.spwIndex[ispw])
 				self.isol+=1
@@ -478,11 +484,24 @@ class calibSolver:
 				dosolve=self.accum[ispw].nextIter()
 			
 			if(dosolve):					
-				accumTime,accumScan,accumSPW,accumField,accumData,accumModel,accumWeight,accumFlag=self.accum[self.spwGroup[self.curGroup][0]].getAccum()
+				#accumTime,accumScan,accumSPW,accumField,accumData,accumModel,accumWeight,accumFlag=self.accum[self.spwGroup[self.curGroup][0]].getAccum()
+
+				accumTime,accumScan,accumSPW,accumField =self.accum[self.spwGroup[self.curGroup][0]].getAccum()
+				accumData=self.accum[self.spwGroup[self.curGroup][0]].getData()
+				accumModel=self.accum[self.spwGroup[self.curGroup][0]].getModel()
+				accumFlag=self.accum[self.spwGroup[self.curGroup][0]].getFlag()
+				accumWeight=self.accum[self.spwGroup[self.curGroup][0]].getWeight()
+
 				if(accumWeight.shape[2]==1):
 					accumWeight=np.repeat(accumWeight,repeats=accumData.shape[2],axis=2)
 				for ispw in self.spwGroup[self.curGroup][1:]:
-					accumTime,accumScan,accumSPW,accumField,accumData_,accumModel_,accumWeight_,accumFlag_=self.accum[ispw].getAccum()
+					#accumTime,accumScan,accumSPW,accumField,accumData_,accumModel_,accumWeight_,accumFlag_=self.accum[ispw].getAccum()
+					accumTime,accumScan,accumSPW,accumField =self.accum[ispw].getAccum()
+					accumData_=self.accum[ispw].getData()
+					accumModel_=self.accum[ispw].getModel()
+					accumFlag_=self.accum[ispw].getFlag()
+					accumWeight_=self.accum[ispw].getWeight()
+
 					accumData=np.append(accumData,accumData_,axis=2)
 					accumModel=np.append(accumModel,accumModel_,axis=2)
 					if(accumWeight_.shape[2]==1):
