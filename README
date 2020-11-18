@@ -1,6 +1,6 @@
 --------------------------
-calR version 3.0
-Pre-compiled to work with CASA version 5.4.1-32.el7 (Also works with 5.5.x and 5.6.x)
+calR version 3.3
+Pre-compiled to work with CASA version 5.4.x (Also works with 5.5.x and 5.6.x)
 --------------------------
 Tasks included:
 gaincalR : Robust frequency independent calibration of antenna gains
@@ -9,10 +9,10 @@ imthreshold : Task to remove negetives from model image.
 --------------------------
 
 Instruction for installing calR
-1) Extract calR_v3.2_precompile.tar.gz [tar -xvf calR_v3.2_precompile.tar.gz]
+1) git clone https://github.com/chowdhuryaditya/calR
 
 
-2) cd calR_v3.2_precompile 
+2) cd calR
    run CASA in the directory and on the ipython shell run :
    os.system('buildmytasks')
    [This should create multiple files in the directory including a 'gaincalR.py' file]
