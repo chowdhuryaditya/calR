@@ -74,9 +74,9 @@ file:///opt/casa/code/xmlcasa/xml/casa.xsd">
 			<value>4</value>
 		</param>
 
-		<param type="int" name="minsnr">
+		<param type="double" name="minsnr">
 			<description>Reject solutions below this SNR</description>
-			<value>5</value>
+			<value>5.0</value>
 		</param>	
 	
 		<param type="string" name="calmode">
