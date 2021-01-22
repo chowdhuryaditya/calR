@@ -10,8 +10,9 @@ VisAccum::VisAccum(string msname,string fieldname, string spw,string uvrange,str
 	tstart=0;
 	curRow=0;
 	nrow=ms.nrow();
-	//cout<<nrow<<endl;
-
+	//cout<<"nrow:"<<nrow<<endl;
+	if(nrow<nrowstepMax)
+		nrowstepMax=nrow;
 	initAccum(getDim(ntimesample));	
 	resetAccum();
 
