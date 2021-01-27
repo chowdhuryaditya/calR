@@ -34,7 +34,8 @@ def gaincalR(vis=None,caltable=None,field='',spw='',selectdata=True,uvrange='',s
 			combinepoln=combinepoln,combinespw=combinespw,
 			solnorm=solnorm,combinecorrnorm=combinecorrnorm,usemedian=usemedian,
 			debugmode=debugmode)
-	
+	if(c.error==True):
+		return None
 	c.solve()
 	if(solnorm):
 		c.normalize()

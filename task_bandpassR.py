@@ -39,6 +39,8 @@ def bandpassR(vis=None,caltable=None,field='',spw='',selectdata=True,uvrange='',
 			dividebychanzero=dividebychanzero,chanzerorange=chanzerorange,
 			normamp=normamp,zerophase=zerophase,preaverage=preaverage,
                         solnorm=solnorm,normchanrange=normchanrange,normampgains=normampgains,zerophasegains=zerophasegains,debugmode=debugmode)
+	if(c.error==True):
+		return None
 	
 	c.solve()
 	return None
