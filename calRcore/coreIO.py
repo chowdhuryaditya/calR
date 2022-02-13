@@ -503,7 +503,7 @@ class calibSolver:
 		while(dosolve):
 			for ispw in self.spwGroup[self.curGroup]:
 				dosolve=self.accum[ispw].nextIter()
-			
+
 			if(dosolve):					
 				#accumTime,accumScan,accumSPW,accumField,accumData,accumModel,accumWeight,accumFlag=self.accum[self.spwGroup[self.curGroup][0]].getAccum()
 
@@ -646,7 +646,7 @@ class calibSolver:
 				#casalog.post(np.array2string(self.spwIndex[np.array(self.spwGroup[ispwGroup])))
 				for ispw in self.spwGroup[ispwGroup]:
 					self.accum[ispw].setHasModel(self.hasmodel)
-					#self.ispw=ispw
+					self.ispw=ispw
 
 					self.accum[ispw].setnsolint(self.solintMap[ispw][0])
 
