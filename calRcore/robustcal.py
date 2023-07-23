@@ -28,7 +28,6 @@ class rantsol:
 		self.timeOnSolver=0.0
 		self.timeOnFlaging=0.0
 		self.nflagsinit=0
-		self.nflagsnbl=0
 		self.minsnr=minsnr
 		self.counterglobal=0
 		self.counterlocal=0
@@ -67,19 +66,6 @@ class rantsol:
 		flags_r=np.abs(real)<=self.nsigma*sigma_r	
 		flags_i=np.abs(imag)<=self.nsigma*sigma_i
 		return np.logical_and(flags_r,flags_i)
-
-	def getInitFlags(self,flags):
-		fl=np.copy(flags)
-		antflagsinit=np.ones(self.Nant,dtype=np.bool)
-		antflagsnbl=np.ones(self.Nant,dtype=np.bool)
-		for i in range(0,self.Nant):	
-			nbl=np.sum(fl[self.ant1==i])+np.sum(fl[self.ant2==i])
-			if(nbl<1):
-				antflagsinit[i]=False
-			if(nbl<self.minblperant):
-				antflagsnbl[i]=False
-		return antflagsinit,antflagsnbl
-
 
 	def getFlags(self,X,flags,olderflags,antflags,g):
 		self.timeOnFlaging-=clock.time()
@@ -195,26 +181,22 @@ class rantsol:
 		self.timeOnFlaging+=clock.time()
 		return flags
 		
-	def solve(self,X_full,model_full,flags_full,sigma_full):
+	def solve(self,X_full,model_full,flags_full,weights_full):
 		#disable solint flag if there is only one sub-sample per solint
 		X_full=np.complex128(X_full)
 		model_full=np.complex128(model_full)
-		sigma_full=sigma_full.astype("double")
+		weights_full=weights_full.astype("double")
 		if(X_full.shape[1]*X_full.shape[2]==1):
 			self.dosolintflag=False
 		#avoiding infinity and NaN's
-		initfflags=np.sum(flags_full)
 		indx=(np.abs(model_full)<1e-20)		
 		flags_full[indx]=False	
-		if(initfflags!=np.sum(flags_full)):
-			print("WARNING: There are zeros in the model column; such data will be flagged.")
 		indx=(np.abs(X_full)<1e-20)		
 		flags_full[indx]=False	
-
-		weights_full=1.0/sigma_full**2
-		weights_full[sigma_full<1e-20]=0.0
-		weights_full[np.isnan(sigma_full)]=0.0
-		weights_full[np.isinf(sigma_full)]=0.0
+		#weights_full=1.0/sigma_full**2
+		#weights_full[sigma_full<1e-20]=0.0
+		weights_full[np.isnan(weights_full)]=0.0
+		weights_full[np.isinf(weights_full)]=0.0
 		X,flags=self.centralValue(X_full,model_full,flags_full,weights=weights_full)
 		wt=self.getweights(model_full,flags_full,weights_full)
 		self.counterlocal=0
@@ -259,16 +241,11 @@ class rantsol:
 			return cnt
 		self.nsigma=1e20
 		g=np.copy(g_old)
-		antflagsinit,antflagsnbl=self.getInitFlags(flags)
-		
 		antflags,fl=self.getFlags(X,flags,fl,antflags,g) 
-
-		
-
 		#if(self.debug):
 		#	print("Initial flags: %d"%np.sum(antflags))
-		self.nflagsinit+=np.sum(antflagsinit)
-		self.nflagsnbl+=np.sum(antflagsnbl)
+		self.nflagsinit+=np.sum(antflags)
+
 		def chisqr():
 			gs=np.conj(g)
 			chi2=np.sqrt(np.sum(np.abs(X[flags]-g[self.ant1][flags]*gs[self.ant2][flags])**2))

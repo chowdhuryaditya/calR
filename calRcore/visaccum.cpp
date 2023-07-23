@@ -10,9 +10,8 @@ VisAccum::VisAccum(string msname,string fieldname, string spw,string uvrange,str
 	tstart=0;
 	curRow=0;
 	nrow=ms.nrow();
-	//cout<<"nrow:"<<nrow<<endl;
-	if(nrow<nrowstepMax)
-		nrowstepMax=nrow;
+	//cout<<nrow<<endl;
+
 	initAccum(getDim(ntimesample));	
 	resetAccum();
 
@@ -143,13 +142,13 @@ void VisAccum::initAccum(IPosition dim)
 	try
 	{
 		hasWtSpec=true;
-	 	_weight=ArrayColumn<float>(ms, MS::columnName(MS::SIGMA_SPECTRUM));
+	 	_weight=ArrayColumn<float>(ms, MS::columnName(MS::WEIGHT_SPECTRUM));
 		IPosition tmp=_weight.shape(0); //CHECK IMPLICATIONS OF THIS LINE
 	}
 	catch(...)
 	{
 		hasWtSpec=false;
-		_weight=ArrayColumn<float>(ms, MS::columnName(MS::SIGMA));
+		_weight=ArrayColumn<float>(ms, MS::columnName(MS::WEIGHT));
 		dim[1] =1;
 	}
 	accumWeight=Array<float>(dim);
@@ -225,11 +224,11 @@ void VisAccum::readFromMS()
 	ArrayColumn<float> _weight;
 	if(hasWtSpec)
 	{
-	 	_weight=ArrayColumn<float>(ms, MS::columnName(MS::SIGMA_SPECTRUM));
+	 	_weight=ArrayColumn<float>(ms, MS::columnName(MS::WEIGHT_SPECTRUM));
 	}
 	else
 	{
-		_weight=ArrayColumn<float>(ms, MS::columnName(MS::SIGMA));
+		_weight=ArrayColumn<float>(ms, MS::columnName(MS::WEIGHT));
 	}
 	ArrayColumn<bool> _flag (ms, MS::columnName(MS::FLAG));
 

@@ -16,7 +16,7 @@ class calibSolver:
 	             refant=0,minblperant=6,minsnr=5,calmode='ap',outlieralgorithm='RMS',
                      threshold=[7,5,3],dosolintflag=False,mingain=1e-2,
 		     gaintable=[],gainfield=[],interp=[],spwmap=[],debugmode=True):
-		self.error=False	  
+		  
 		self.debug=debugmode
 		self.ms=ms.ms()
 		self.ms2=ms.ms()
@@ -41,7 +41,7 @@ class calibSolver:
 		self.outlieralgorithm=outlieralgorithm
 		self.dosolintflag=dosolintflag
 		self.combine=combine
-		#self.error=False
+		self.error=False
 		self.mingain=mingain
 		self.gaintable=gaintable
 		self.gainfield=gainfield
@@ -51,7 +51,7 @@ class calibSolver:
 		self.dcolumn='DATA'
 		self.tblock=300.0
 		self.ispw=0	
-		#self.error=False	
+		self.error=False	
 		self.dataDescIndex,self.spwIndex=self.getSpwMap() 
 		self.nCorr,self.totalIpoln=self.getPolnTypes()	
 		casalog.post("CalR_v3.3")
@@ -64,12 +64,11 @@ class calibSolver:
 		#self.createCaltable()
 		if(self.solint !='inf' and self.solint != 'int'):
 			self.solint=self.solint*60.0
-		self.checktimesort()
+
 		self.solintMap,self.spwGroup=self.getSolintMap() 
 		self.initVisAccum()
 		#solver statistics counters
 		self.nflaginit=0
-		self.nflagnbl=0
 		self.nflagsolver=0
 		self.ntotalsol=0
 		self.nflagfinal=0
@@ -125,7 +124,7 @@ class calibSolver:
 				
 		if(error==True):
 			self.error=(error or self.error)
-			print("ERROR: Cannot understand solint. E.g. 10s, 2min, inf, int")	
+			casalog.post("Cannot understand solint. E.g. 10s, 2min, inf, int")	
 			return -1
 
 			
@@ -353,23 +352,7 @@ class calibSolver:
 			group.append(thisgroup)
 		return group
 						
-	def checktimesort(self):
-		for ispw in range(len(self.spwIndex)):
-			thisSolintMap=[]
-			thisScanMap=[]
-			self.ms.open(self.vis,nomodify=True)
-	      		self.ms.selectinit(datadescid=self.dataDescIndex[ispw])  
-			self.ms.msselect({'field':self.field,'spw':self.spw,'scan':self.scan,'uvdist':self.uvrange,
-					'observation':self.observation})
-			dataAll=self.ms.getdata(['TIME','SCAN_NUMBER','FIELD_ID'])
-			time=dataAll['time']
-			timesorted=np.sort(time)
-			if(np.sum(time==timesorted)!=len(time)):
-				self.error=True
-				print("ERROR: MS not supported by calR. The time column is not sorted in ascending order.")
-				print("You can use the split task to create a copy of the measurement set.")
-				print("This is known to fix the time order in the measurement set.")
-				return -1
+			
 	def getSolintMap(self):
 		solintMap=[]
 		scanMap=[]
@@ -430,12 +413,12 @@ class calibSolver:
 	def coreSolve(self,accumData,accumModel,accumWeight,accumFlag):
 		ispw=self.ispw
 		accumFlag=np.logical_not(accumFlag)
-		accumWeight=1.0/accumWeight
+		#accumWeight=1.0/accumWeight
 		
 		goodbl=(np.mean(np.mean(np.mean(accumFlag,axis=0),axis=1),axis=1)>0)
 		casalog.origin("gaincalRIO::coreIO::coreSolve")		
 		if(self.debug):
-			casalog.post("DEBUG: Good baselines: %d"%np.sum(goodbl))
+			casalog.post("Good baselines: %d"%np.sum(goodbl))
 		solver=rantsol(threshold=self.threshold,minblperant=self.minblperant,refant=self.refant,
 		     			      Nant=self.Nant,ant1=self.ant1[goodbl],ant2=self.ant2[goodbl],
 		       			      outlieralgorithm=self.outlieralgorithm,
@@ -452,14 +435,13 @@ class calibSolver:
 			casalog.post("DEBUG: end solve")
 			casalog.post("DEBUG: Time on solver- %.3f"%solver.timeOnSolver)
 			casalog.post("DEBUG: Time on flagging- %.3f"%solver.timeOnFlaging)
-		
+					
 		self.nflaginit+=solver.nflagsinit
-		self.nflagnbl+=solver.nflagsnbl
 		self.gainsOld=np.copy(self.gains)					
 		self.snr=np.zeros(self.gains.shape)
 		self.snr[self.antFlags]=np.abs(self.gains[self.antFlags])/np.abs(self.gains_er[self.antFlags])
-		totalSol=self.nCorr*self.gains.shape[1]*self.gains.shape[2]
-		self.nflagfinal+=np.sum((self.antFlags))
+		totalSol=self.gains.shape[0]*self.gains.shape[1]*self.gains.shape[2]
+		self.nflagfinal+=np.sum(self.antFlags)
 		self.ntotalsol+=totalSol
 		casalog.post("%d/%d : %d out of %d solutions flagged"%(self.isol+1,self.solintMap[ispw].shape[0],totalSol-np.sum(self.antFlags),totalSol))
 			
@@ -481,12 +463,9 @@ class calibSolver:
 				self.putInTable(self.gains,self.gains_er,self.snr,np.logical_not(self.antFlags),accumTime/self.solintMap[ispw][self.isol],accumScan,accumField,self.spwIndex[ispw])
 				self.isol+=1
 				if(self.isol<len(self.solintMap[ispw])):
-		#			print(self.isol,len(self.solintMap[ispw]))
 					self.accum[ispw].setnsolint(self.solintMap[ispw][self.isol])			
 				self.accum[ispw].resetAccum()
-		#		print(dosolve)
-		#	print(dosolve)
-		#print("Out of loop")
+
 		endflag=self.accum[ispw].getEndflag()
 		#scan=[-1,-1]
 		#if(endflag):		
@@ -503,7 +482,7 @@ class calibSolver:
 		while(dosolve):
 			for ispw in self.spwGroup[self.curGroup]:
 				dosolve=self.accum[ispw].nextIter()
-
+			
 			if(dosolve):					
 				#accumTime,accumScan,accumSPW,accumField,accumData,accumModel,accumWeight,accumFlag=self.accum[self.spwGroup[self.curGroup][0]].getAccum()
 
@@ -621,11 +600,9 @@ class calibSolver:
 				self.isol=0
 				self.findDataShape()
 				self.initializeGains()
-				#print("nsolint",self.solintMap[self.ispw][0])
 				self.accum[self.ispw].setnsolint(self.solintMap[self.ispw][0])
 				endflag=True
 				while(endflag):	
-				#	print("endflag",endflag)
 					scanstop_=scanstop
 					endflag,scanstop=self.accumulateAndSolvePerSPW()	
 					if(scanstop_<scanstop):
@@ -646,7 +623,7 @@ class calibSolver:
 				#casalog.post(np.array2string(self.spwIndex[np.array(self.spwGroup[ispwGroup])))
 				for ispw in self.spwGroup[ispwGroup]:
 					self.accum[ispw].setHasModel(self.hasmodel)
-					self.ispw=ispw
+					#self.ispw=ispw
 
 					self.accum[ispw].setnsolint(self.solintMap[ispw][0])
 
@@ -675,20 +652,14 @@ class calibSolver:
 			casalog.post("DEBUG: Total time in accumulation: %.3f"%self.timeaccum)
 			casalog.post("DEBUG: Total time in mean/median computation: %.3f"%self.timemean)
 			casalog.post("DEBUG: Total time in solve: %.3f"%self.timesolve)
-
 		if(self.combinepoln):
 			self.nflaginit*=2
-			self.nflagnbl*=2
-		self.nflagnbl=self.ntotalsol-self.nflagnbl
 		self.nflaginit=self.ntotalsol-self.nflaginit
-
 		self.nflagfinal=self.ntotalsol-self.nflagfinal
-		nflagrobust=self.nflagfinal-self.nflagnbl
-		self.nflagnbl=self.nflagnbl-self.nflaginit
+		nflagrobust=self.nflagfinal-self.nflaginit
 		casalog.post("Solution statistics:")
-		casalog.post("%d/%d (%.2f %%) solutions were flagged due to no unflagged baselines for an antenna"%(self.nflaginit,self.ntotalsol,(100.0*self.nflaginit)/self.ntotalsol))
-		casalog.post("%d/%d (%.2f %%) solutions were flagged due to low baseline count (1<nbl<nblperant)"%(self.nflagnbl,self.ntotalsol,(100.0*self.nflagnbl)/self.ntotalsol))
-		casalog.post("%d/%d (%.2f %%) solutions flagged due to low SNR or low baseline count after flagging by gaincalR"%(nflagrobust,self.ntotalsol,(100.0*nflagrobust)/self.ntotalsol))
+		casalog.post("%d/%d (%.2f %%) solutions were already flagged in ms"%(self.nflaginit,self.ntotalsol,(100.0*self.nflaginit)/self.ntotalsol))
+		casalog.post("%d/%d (%.2f %%) solutions flagged due to low SNR and/or baseline count"%(nflagrobust,self.ntotalsol,(100.0*nflagrobust)/self.ntotalsol))
 		casalog.post("%d/%d (%.2f %%) solutions flagged in total"%(self.nflagfinal,self.ntotalsol,(100.0*self.nflagfinal)/self.ntotalsol))		
 
 		return 1

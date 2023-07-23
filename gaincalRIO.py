@@ -16,15 +16,11 @@ class gaincalR(calRcore.coreIO.calibSolver):
 		#	if(not self.error):
 		#		print("Cannot combine Spectral Windows. Were different windows observed simultaneously?")
 				
-	def initializeGains(self):	
-		if(self.nCorr==1):	
-			self.gains=np.zeros((2,1,self.Nant),dtype=np.complex128) 
-			self.gains_er=np.zeros((2,1,self.Nant))
-			self.antFlags=np.zeros((2,1,self.Nant),dtype=np.bool)
-		else:
-			self.gains=np.zeros((self.nCorr,1,self.Nant),dtype=np.complex128) 
-			self.gains_er=np.zeros((self.nCorr,1,self.Nant))
-			self.antFlags=np.zeros((self.nCorr,1,self.Nant),dtype=np.bool)
+	def initializeGains(self):		
+		self.gains=np.zeros((self.nCorr,1,self.Nant),dtype=np.complex128) 
+		self.gains_er=np.zeros((self.nCorr,1,self.Nant))
+		self.antFlags=np.zeros((self.nCorr,1,self.Nant),dtype=np.bool)
+		
 	
 	def validateSolint(self):
 		nsol=np.sum(self.solintMap,axis=1)
@@ -60,6 +56,7 @@ class gaincalR(calRcore.coreIO.calibSolver):
 				
 	def getGains(self,solver,accumd,accummodel,accumwt,accumfl,goodbl):	
 		nsamples=self.solintMap[self.ispw][self.isol]
+		
 		if(not self.combinepoln):	
 		
 			for j in range(0,self.nCorr):
